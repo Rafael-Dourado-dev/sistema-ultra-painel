@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard - Sistema Ultra v3</title>
+    <link rel="stylesheet" href="css/style.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+</head>
+<body>
+    <div class="dashboard">
+        <aside class="sidebar"></aside>
+        <main class="main-content">
+            <header class="header">
+                <div class="header-title">
+                    <h1>Dashboard</h1>
+                    <p class="header-subtitle">Visão geral do sistema</p>
+                </div>
+                <div class="header-actions">
+                    <button class="theme-toggle" onclick="toggleTheme()" title="Alternar tema">🌙</button>
+                </div>
+            </header>
+            <div class="content">
+                <div class="cards-grid">
+                    <div class="card">
+                        <div class="card-header"><div class="card-icon primary">🏪</div></div>
+                        <div class="card-value" id="totalLojas">-</div>
+                        <div class="card-label">Total de Lojas</div>
+                        <div class="card-footer"><span id="novasMes">+0</span> novas este mês</div>
+                    </div>
+                    <div class="card">
+                        <div class="card-header"><div class="card-icon success">✅</div></div>
+                        <div class="card-value" id="lojasAtivas">-</div>
+                        <div class="card-label">Lojas Ativas</div>
+                        <div class="card-footer"><span id="percentualAtivas">0%</span> do total</div>
+                    </div>
+                    <div class="card">
+                        <div class="card-header"><div class="card-icon warning">⚠️</div></div>
+                        <div class="card-value" id="lojasInadimplentes">-</div>
+                        <div class="card-label">Inadimplentes</div>
+                        <div class="card-footer"><span id="lojasBloqueadas">0</span> bloqueadas</div>
+                    </div>
+                    <div class="card">
+                        <div class="card-header"><div class="card-icon info">💰</div></div>
+                        <div class="card-value" id="faturamentoMes">R$ -</div>
+                        <div class="card-label">Faturamento Mês</div>
+                        <div class="card-footer" id="faturamentoFooter">-</div>
+                    </div>
+                </div>
+
+                <!-- Segmentos Overview -->
+                <div class="section-title" style="margin-top:32px;">📊 Lojas por Segmento</div>
+                <div class="cards-grid" id="segmentosGrid">
+                    <div class="card"><div class="card-label">Carregando...</div></div>
+                </div>
+
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:24px;margin-top:24px;">
+                    <div class="card" style="padding:24px;">
+                        <div class="card-label" style="font-weight:600;margin-bottom:16px;">📅 Próximos Vencimentos</div>
+                        <div id="vencimentosList" style="max-height:300px;overflow-y:auto;">Carregando...</div>
+                    </div>
+                    <div class="card" style="padding:24px;">
+                        <div class="card-label" style="font-weight:600;margin-bottom:16px;">📈 Faturamento Mensal</div>
+                        <canvas id="chartFaturamento" height="250"></canvas>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+    <script src="js/config.js"></script>
+    <script src="js/utils.js"></script>
+    <script src="js/sidebar.js"></script>
+    <script>
+        renderSidebar('dashboard');
+        checkAuth();
+
+        async function loadDashboard() {
+            try {
+                // Resumo
+                const resumo = await apiGet(API_CONFIG.ENDPOINTS.DASHBOARD_RESUMO);
+                if (resumo) {
+                    document.getElementById('totalLojas').textContent = resumo.total_lojas || 0;
+                    document.getElementById('lojasAtivas').textContent = resumo.lojas_ativas || 0;
+                    document.getElementById('lojasInadimplentes').textContent = resumo.lojas_inadimplentes || 0;
+                    document.getElementById('lojasBloqueadas').textContent = resumo.lojas_bloqueadas || 0;
+                    document.getElementById('novasMes').textContent = '+' + (resumo.novas_mes || 0);
+                    const total = resumo.total_lojas || 1;
+                    document.getElementById('percentualAtivas').textContent = Math.round(((resumo.lojas_ativas||0)/total)*100) + '%';
+                    if (resumo.faturamento_mes !== undefined) {
+                        document.getElementById('faturamentoMes').textContent = 'R$ ' + Number(resumo.faturamento_mes).toLocaleString('pt-BR',{minimumFractionDigits:2});
+                    }
+                }
+
+                // Segmentos
+                loadSegmentos();
+
+                // Vencimentos
+                const venc = await apiGet(API_CONFIG.ENDPOINTS.DASHBOARD_VENCIMENTOS);
+                if (venc && venc.length > 0) {
+                    document.getElementById('vencimentosList').innerHTML = venc.slice(0,10).map(v => `
+                        <div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border-color);">
+                            <span style="font-weight:500;">${v.nome_fantasia || v.loja_id}</span>
+                            <span style="color:${v.dias_restantes <= 3 ? 'var(--danger)' : 'var(--text-secondary)'}">
+                                ${v.data_vencimento} (${v.dias_restantes}d)
+                            </span>
+                        </div>
+                    `).join('');
+                } else {
+                    document.getElementById('vencimentosList').innerHTML = '<p style="color:var(--text-secondary)">Nenhum vencimento próximo</p>';
+                }
+
+                // Chart
+                const fat = await apiGet(API_CONFIG.ENDPOINTS.DASHBOARD_FATURAMENTO);
+                if (fat && fat.length > 0) {
+                    const ctx = document.getElementById('chartFaturamento').getContext('2d');
+                    new Chart(ctx, {
+                        type: 'bar',
+                        data: {
+                            labels: fat.map(f => f.mes),
+                            datasets: [{
+                                label: 'Faturamento R$',
+                                data: fat.map(f => f.valor),
+                                backgroundColor: '#6366F1',
+                                borderRadius: 8,
+                            }]
+                        },
+                        options: {
+                            responsive: true,
+                            plugins: { legend: { display: false } },
+                            scales: { y: { beginAtZero: true } }
+                        }
+                    });
+                }
+            } catch(e) {
+                console.error('Erro dashboard:', e);
+            }
+        }
+
+        async function loadSegmentos() {
+            try {
+                const segs = await apiGet(API_CONFIG.ENDPOINTS.MODULOS_SEGMENTOS);
+                const lojas = await apiGet(API_CONFIG.ENDPOINTS.LOJAS);
+                
+                if (segs && lojas) {
+                    const contagem = {};
+                    segs.forEach(s => contagem[s.id] = { nome: s.nome, icone: s.icone, count: 0 });
+                    let semSeg = 0;
+                    lojas.forEach(l => {
+                        if (l.segmento_id && contagem[l.segmento_id]) contagem[l.segmento_id].count++;
+                        else semSeg++;
+                    });
+
+                    let html = '';
+                    Object.values(contagem).forEach(s => {
+                        html += `<div class="card">
+                            <div class="card-header"><div class="card-icon">${s.icone || '📦'}</div></div>
+                            <div class="card-value">${s.count}</div>
+                            <div class="card-label">${s.nome}</div>
+                        </div>`;
+                    });
+                    if (semSeg > 0) {
+                        html += `<div class="card">
+                            <div class="card-header"><div class="card-icon">❓</div></div>
+                            <div class="card-value">${semSeg}</div>
+                            <div class="card-label">Sem Segmento</div>
+                        </div>`;
+                    }
+                    document.getElementById('segmentosGrid').innerHTML = html;
+                }
+            } catch(e) {
+                document.getElementById('segmentosGrid').innerHTML = '<div class="card"><div class="card-label">Erro ao carregar segmentos</div></div>';
+            }
+        }
+
+        loadDashboard();
+    </script>
+</body>
+</html>

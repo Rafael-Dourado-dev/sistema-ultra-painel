@@ -1,0 +1,254 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Módulos - Sistema Ultra v3</title>
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+    <div class="dashboard">
+        <aside class="sidebar"></aside>
+        <main class="main-content">
+            <header class="header">
+                <div class="header-title">
+                    <h1>🧩 Módulos</h1>
+                    <p class="header-subtitle" id="subtitulo">Gerenciamento de módulos por loja</p>
+                </div>
+                <div class="header-actions">
+                    <button class="theme-toggle" onclick="toggleTheme()">🌙</button>
+                </div>
+            </header>
+            <div class="content">
+                <!-- Seletor de loja (quando não vem da URL) -->
+                <div id="seletorLoja" class="card" style="padding:24px;margin-bottom:24px;">
+                    <h3 style="margin-bottom:16px;">Selecione uma loja para gerenciar módulos</h3>
+                    <div style="display:flex;gap:12px;align-items:center;">
+                        <select id="lojaSelect" class="form-input" style="max-width:400px;" onchange="selecionarLoja()">
+                            <option value="">Selecione a loja...</option>
+                        </select>
+                        <select id="segmentoFilter" class="form-input" style="max-width:250px;" onchange="filtrarLojasPorSegmento()">
+                            <option value="">Filtrar por segmento...</option>
+                        </select>
+                    </div>
+                </div>
+
+                <!-- Info da Loja -->
+                <div id="lojaInfo" style="display:none;">
+                    <div class="card" style="padding:20px;margin-bottom:24px;">
+                        <div style="display:flex;justify-content:space-between;align-items:center;">
+                            <div>
+                                <h2 id="lojaNome" style="margin:0;"></h2>
+                                <p id="lojaSegmento" style="margin:4px 0 0;color:var(--text-secondary);"></p>
+                            </div>
+                            <div style="display:flex;gap:8px;align-items:center;">
+                                <label style="font-weight:500;">Segmento:</label>
+                                <select id="mudarSegmento" class="form-input" style="max-width:220px;" onchange="mudarSegmentoLoja()">
+                                    <option value="">Selecione...</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Grid de módulos -->
+                    <div id="modulosGrid" class="modulos-grid"></div>
+                </div>
+
+                <!-- Template visual dos segmentos (quando nenhuma loja selecionada) -->
+                <div id="segmentosOverview">
+                    <h3 style="margin-bottom:16px;">📋 Módulos padrão por segmento</h3>
+                    <div id="segmentosCards" class="cards-grid"></div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script src="js/config.js"></script>
+    <script src="js/utils.js"></script>
+    <script src="js/sidebar.js"></script>
+    <script>
+        renderSidebar('modulos');
+        checkAuth();
+
+        let lojas = [];
+        let segmentos = [];
+        let todosModulos = [];
+        let lojaAtual = null;
+
+        async function init() {
+            segmentos = await apiGet(API_CONFIG.ENDPOINTS.MODULOS_SEGMENTOS) || [];
+            todosModulos = await apiGet(API_CONFIG.ENDPOINTS.MODULOS_TODOS) || [];
+            lojas = await apiGet(API_CONFIG.ENDPOINTS.LOJAS) || [];
+
+            // Populate selects
+            const lojaSelect = document.getElementById('lojaSelect');
+            const segFilter = document.getElementById('segmentoFilter');
+            const mudarSeg = document.getElementById('mudarSegmento');
+
+            lojas.forEach(l => {
+                lojaSelect.innerHTML += `<option value="${l.id}">${l.nome_fantasia} (${l.cnpj})</option>`;
+            });
+            segmentos.forEach(s => {
+                segFilter.innerHTML += `<option value="${s.id}">${s.icone} ${s.nome}</option>`;
+                mudarSeg.innerHTML += `<option value="${s.codigo}">${s.icone} ${s.nome}</option>`;
+            });
+
+            // Render segmentos overview
+            renderSegmentosOverview();
+
+            // Check URL param
+            const params = new URLSearchParams(window.location.search);
+            const lojaId = params.get('loja');
+            if (lojaId) {
+                document.getElementById('lojaSelect').value = lojaId;
+                selecionarLoja();
+            }
+        }
+
+        function filtrarLojasPorSegmento() {
+            const segId = document.getElementById('segmentoFilter').value;
+            const lojaSelect = document.getElementById('lojaSelect');
+            lojaSelect.innerHTML = '<option value="">Selecione a loja...</option>';
+            
+            let filtradas = lojas;
+            if (segId) filtradas = lojas.filter(l => l.segmento_id == segId);
+            filtradas.forEach(l => {
+                lojaSelect.innerHTML += `<option value="${l.id}">${l.nome_fantasia} (${l.cnpj})</option>`;
+            });
+        }
+
+        async function selecionarLoja() {
+            const id = document.getElementById('lojaSelect').value;
+            if (!id) {
+                document.getElementById('lojaInfo').style.display = 'none';
+                document.getElementById('segmentosOverview').style.display = 'block';
+                return;
+            }
+
+            document.getElementById('segmentosOverview').style.display = 'none';
+            document.getElementById('lojaInfo').style.display = 'block';
+
+            const loja = lojas.find(l => l.id == id);
+            lojaAtual = loja;
+            document.getElementById('lojaNome').textContent = loja.nome_fantasia;
+            
+            const seg = segmentos.find(s => s.id === loja.segmento_id);
+            document.getElementById('lojaSegmento').textContent = seg ? `${seg.icone} ${seg.nome}` : '❓ Sem segmento definido';
+            document.getElementById('mudarSegmento').value = seg ? seg.codigo : '';
+            document.getElementById('subtitulo').textContent = `Módulos de: ${loja.nome_fantasia}`;
+
+            await carregarModulosLoja(id);
+        }
+
+        async function carregarModulosLoja(id) {
+            const data = await apiGet(API_CONFIG.ENDPOINTS.MODULOS_LOJA(id));
+            if (!data) return;
+
+            const modulosAtivos = {};
+            (data.modulos || []).forEach(m => { modulosAtivos[m.codigo] = m.ativo; });
+
+            const categorias = {
+                core: { label: '⚡ Core (sempre ativo)', items: [] },
+                cadastros: { label: '📋 Cadastros', items: [] },
+                vendas: { label: '🛒 Vendas', items: [] },
+                servicos: { label: '🔧 Serviços', items: [] },
+                financeiro: { label: '📊 Financeiro', items: [] },
+            };
+
+            todosModulos.forEach(m => {
+                const cat = categorias[m.categoria] || categorias.core;
+                const ativo = modulosAtivos[m.codigo] !== undefined ? modulosAtivos[m.codigo] : false;
+                cat.items.push({ ...m, ativo });
+            });
+
+            let html = '';
+            Object.entries(categorias).forEach(([key, cat]) => {
+                if (cat.items.length === 0) return;
+                html += `<div class="modulo-categoria">
+                    <h3 class="modulo-cat-title">${cat.label}</h3>
+                    <div class="modulo-cards">`;
+                
+                cat.items.forEach(m => {
+                    const isCore = m.categoria === 'core';
+                    html += `
+                    <div class="modulo-card ${m.ativo ? 'modulo-ativo' : 'modulo-inativo'}">
+                        <div class="modulo-icon">${m.icone || '📦'}</div>
+                        <div class="modulo-info">
+                            <div class="modulo-nome">${m.nome}</div>
+                            <div class="modulo-desc">${m.descricao || ''}</div>
+                        </div>
+                        <label class="switch">
+                            <input type="checkbox" ${m.ativo ? 'checked' : ''} ${isCore ? 'disabled' : ''} 
+                                onchange="toggleModulo('${m.codigo}', this.checked)">
+                            <span class="slider"></span>
+                        </label>
+                    </div>`;
+                });
+                html += `</div></div>`;
+            });
+
+            document.getElementById('modulosGrid').innerHTML = html;
+        }
+
+        async function toggleModulo(codigo, ativo) {
+            if (!lojaAtual) return;
+            try {
+                await apiPost(API_CONFIG.ENDPOINTS.MODULOS_TOGGLE(lojaAtual.id), {
+                    modulo_codigo: codigo,
+                    ativo: ativo
+                });
+                await carregarModulosLoja(lojaAtual.id);
+            } catch(e) {
+                alert('Erro: ' + (e.message || e));
+                await carregarModulosLoja(lojaAtual.id);
+            }
+        }
+
+        async function mudarSegmentoLoja() {
+            if (!lojaAtual) return;
+            const codigo = document.getElementById('mudarSegmento').value;
+            if (!codigo) return;
+            if (!confirm(`Mudar segmento da loja para "${codigo}"? Os módulos serão reconfigurados.`)) {
+                const seg = segmentos.find(s => s.id === lojaAtual.segmento_id);
+                document.getElementById('mudarSegmento').value = seg ? seg.codigo : '';
+                return;
+            }
+            try {
+                await apiPost(API_CONFIG.ENDPOINTS.MODULOS_DEFINIR_SEG(lojaAtual.id, codigo), {});
+                // Update local data
+                const seg = segmentos.find(s => s.codigo === codigo);
+                if (seg) {
+                    lojaAtual.segmento_id = seg.id;
+                    document.getElementById('lojaSegmento').textContent = `${seg.icone} ${seg.nome}`;
+                }
+                await carregarModulosLoja(lojaAtual.id);
+            } catch(e) {
+                alert('Erro: ' + (e.message || e));
+            }
+        }
+
+        async function renderSegmentosOverview() {
+            let html = '';
+            for (const seg of segmentos) {
+                try {
+                    const data = await apiGet(API_CONFIG.ENDPOINTS.MODULOS_SEGMENTO(seg.codigo));
+                    const mods = (data.modulos || []);
+                    const ativos = mods.filter(m => m.ativo_padrao);
+                    html += `
+                    <div class="card" style="padding:20px;">
+                        <h3>${seg.icone} ${seg.nome}</h3>
+                        <p style="color:var(--text-secondary);margin:8px 0 12px;">${seg.descricao || ''}</p>
+                        <div style="display:flex;flex-wrap:wrap;gap:4px;">
+                            ${ativos.map(m => `<span class="badge badge-success" style="font-size:11px;">${m.modulo.icone} ${m.modulo.nome}</span>`).join('')}
+                        </div>
+                        <p style="margin-top:12px;font-size:12px;color:var(--text-secondary);">${ativos.length} módulos ativos por padrão</p>
+                    </div>`;
+                } catch(e) {}
+            }
+            document.getElementById('segmentosCards').innerHTML = html;
+        }
+
+        init();
+    </script>
+</body>
+</html>

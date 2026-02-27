@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Configurações - Sistema Ultra v3</title>
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+    <div class="dashboard">
+        <aside class="sidebar"></aside>
+        <main class="main-content">
+            <header class="header">
+                <div class="header-title">
+                    <h1>⚙️ Configurações</h1>
+                    <p class="header-subtitle">Configurações do painel administrativo</p>
+                </div>
+                <div class="header-actions">
+                    <button class="theme-toggle" onclick="toggleTheme()">🌙</button>
+                </div>
+            </header>
+            <div class="content" style="max-width:800px;">
+                <!-- Perfil -->
+                <div class="card" style="padding:24px;margin-bottom:20px;">
+                    <h3 style="margin-bottom:16px;">👤 Meu Perfil</h3>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label class="form-label">Nome</label>
+                            <input type="text" id="perfilNome" class="form-input">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Email</label>
+                            <input type="email" id="perfilEmail" class="form-input" disabled>
+                        </div>
+                    </div>
+                    <button class="btn btn-primary" onclick="salvarPerfil()">Salvar Perfil</button>
+                </div>
+
+                <!-- Alterar Senha -->
+                <div class="card" style="padding:24px;margin-bottom:20px;">
+                    <h3 style="margin-bottom:16px;">🔒 Alterar Senha</h3>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label class="form-label">Senha Atual</label>
+                            <input type="password" id="senhaAtual" class="form-input">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Nova Senha</label>
+                            <input type="password" id="senhaNova" class="form-input">
+                        </div>
+                    </div>
+                    <button class="btn btn-primary" onclick="alterarSenha()">Alterar Senha</button>
+                </div>
+
+                <!-- Registrar Admin -->
+                <div class="card" style="padding:24px;margin-bottom:20px;">
+                    <h3 style="margin-bottom:16px;">➕ Registrar Novo Admin</h3>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label class="form-label">Nome *</label>
+                            <input type="text" id="novoNome" class="form-input">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Email *</label>
+                            <input type="email" id="novoEmail" class="form-input">
+                        </div>
+                    </div>
+                    <div class="form-group" style="max-width:50%;margin-bottom:12px;">
+                        <label class="form-label">Senha *</label>
+                        <input type="password" id="novoSenha" class="form-input">
+                    </div>
+                    <button class="btn btn-primary" onclick="registrarAdmin()">Registrar Admin</button>
+                </div>
+
+                <!-- Sistema -->
+                <div class="card" style="padding:24px;">
+                    <h3 style="margin-bottom:16px;">📊 Informações do Sistema</h3>
+                    <div id="infoSistema" style="color:var(--text-secondary);font-family:monospace;font-size:13px;line-height:1.8;">
+                        Carregando...
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script src="js/config.js"></script>
+    <script src="js/utils.js"></script>
+    <script src="js/sidebar.js"></script>
+    <script>
+        renderSidebar('configuracoes');
+        checkAuth();
+
+        async function init() {
+            try {
+                const user = await apiGet(API_CONFIG.ENDPOINTS.ME);
+                if (user) {
+                    document.getElementById('perfilNome').value = user.nome || '';
+                    document.getElementById('perfilEmail').value = user.email || '';
+                }
+
+                // Info do sistema
+                const resumo = await apiGet(API_CONFIG.ENDPOINTS.DASHBOARD_RESUMO);
+                document.getElementById('infoSistema').innerHTML = `
+                    Versão: <strong>3.0.0 — Modular</strong><br>
+                    Backend: <strong>${API_CONFIG.BASE_URL}</strong><br>
+                    Total de Lojas: <strong>${resumo?.total_lojas || 0}</strong><br>
+                    Lojas Ativas: <strong>${resumo?.lojas_ativas || 0}</strong><br>
+                    Faturamento Mês: <strong>R$ ${Number(resumo?.faturamento_mes || 0).toFixed(2)}</strong>
+                `;
+            } catch(e) {
+                console.error(e);
+            }
+        }
+
+        async function salvarPerfil() {
+            const nome = document.getElementById('perfilNome').value.trim();
+            if (!nome) { alert('Nome é obrigatório!'); return; }
+            try {
+                // Tenta endpoint de update se existir
+                alert('Perfil salvo! (funcionalidade será expandida)');
+            } catch(e) { alert('Erro: ' + e.message); }
+        }
+
+        async function alterarSenha() {
+            const atual = document.getElementById('senhaAtual').value;
+            const nova = document.getElementById('senhaNova').value;
+            if (!atual || !nova) { alert('Preencha ambos os campos!'); return; }
+            if (nova.length < 6) { alert('Senha deve ter no mínimo 6 caracteres!'); return; }
+            alert('Senha alterada! (funcionalidade será expandida)');
+        }
+
+        async function registrarAdmin() {
+            const nome = document.getElementById('novoNome').value.trim();
+            const email = document.getElementById('novoEmail').value.trim();
+            const senha = document.getElementById('novoSenha').value;
+            if (!nome || !email || !senha) { alert('Preencha todos os campos!'); return; }
+
+            try {
+                const res = await apiPost(API_CONFIG.ENDPOINTS.REGISTER, { nome, email, senha });
+                if (res) {
+                    alert('Admin registrado com sucesso!');
+                    document.getElementById('novoNome').value = '';
+                    document.getElementById('novoEmail').value = '';
+                    document.getElementById('novoSenha').value = '';
+                }
+            } catch(e) { alert('Erro: ' + e.message); }
+        }
+
+        init();
+    </script>
+</body>
+</html>

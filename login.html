@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Login - Sistema Ultra</title>
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+    <div class="login-page">
+        <div class="login-container">
+            <div class="login-box">
+                <div class="login-logo">
+                    <div class="login-logo-icon">🚀</div>
+                    <h1>SISTEMA ULTRA</h1>
+                    <p>Painel Administrativo</p>
+                </div>
+                
+                <form id="loginForm">
+                    <div id="alertContainer"></div>
+                    
+                    <div class="form-group">
+                        <label class="form-label" for="email">Email</label>
+                        <input 
+                            type="email" 
+                            id="email" 
+                            class="form-input" 
+                            placeholder="seu@email.com"
+                            required
+                            autocomplete="email">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label class="form-label" for="senha">Senha</label>
+                        <input 
+                            type="password" 
+                            id="senha" 
+                            class="form-input" 
+                            placeholder="••••••••"
+                            required
+                            autocomplete="current-password">
+                    </div>
+                    
+                    <button type="submit" class="btn btn-primary btn-lg btn-block" id="btnLogin">
+                        <span id="btnText">Entrar</span>
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+    
+    <script src="js/config.js"></script>
+    <script src="js/utils.js"></script>
+    <script>
+        const form = document.getElementById('loginForm');
+        const btnLogin = document.getElementById('btnLogin');
+        const btnText = document.getElementById('btnText');
+        const alertContainer = document.getElementById('alertContainer');
+        
+        form.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const email = document.getElementById('email').value;
+            const senha = document.getElementById('senha').value;
+            
+            // Desabilitar botão
+            btnLogin.disabled = true;
+            btnText.textContent = 'Entrando...';
+            alertContainer.innerHTML = '';
+            
+            try {
+                const data = await post(API_CONFIG.ENDPOINTS.LOGIN, { email, senha });
+                
+                if (data && data.access_token) {
+                    // Salvar token
+                    setToken(data.access_token);
+                    
+                    // Buscar dados do usuário
+                    try {
+                        const user = await get(API_CONFIG.ENDPOINTS.ME);
+                        setUser(user);
+                    } catch (error) {
+                        console.log('Não foi possível carregar dados do usuário');
+                    }
+                    
+                    // Redirecionar
+                    window.location.href = 'dashboard.html';
+                } else {
+                    throw new Error('Resposta inválida do servidor');
+                }
+            } catch (error) {
+                alertContainer.innerHTML = `
+                    <div class="alert alert-error">
+                        <span>❌</span>
+                        <span>${error.message || 'Email ou senha incorretos'}</span>
+                    </div>
+                `;
+                
+                btnLogin.disabled = false;
+                btnText.textContent = 'Entrar';
+            }
+        });
+    </script>
+</body>
+</html>

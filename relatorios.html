@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Relatórios - Sistema Ultra v3</title>
+    <link rel="stylesheet" href="css/style.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+</head>
+<body>
+    <div class="dashboard">
+        <aside class="sidebar"></aside>
+        <main class="main-content">
+            <header class="header">
+                <div class="header-title">
+                    <h1>📈 Relatórios</h1>
+                    <p class="header-subtitle">Relatórios e análises do sistema</p>
+                </div>
+                <div class="header-actions">
+                    <button class="theme-toggle" onclick="toggleTheme()">🌙</button>
+                </div>
+            </header>
+            <div class="content">
+                <!-- Tabs -->
+                <div class="tabs-bar">
+                    <button class="tab-btn active" onclick="trocarTab(this, 'tabFaturamento')">💰 Faturamento</button>
+                    <button class="tab-btn" onclick="trocarTab(this, 'tabInadimplencia')">⚠️ Inadimplência</button>
+                    <button class="tab-btn" onclick="trocarTab(this, 'tabRetencao')">📊 Retenção</button>
+                    <button class="tab-btn" onclick="trocarTab(this, 'tabExecutivo')">📋 Executivo</button>
+                </div>
+
+                <!-- Tab: Faturamento -->
+                <div id="tabFaturamento" class="tab-content active">
+                    <div class="card" style="padding:24px;margin-bottom:16px;">
+                        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+                            <h3>Faturamento por Período</h3>
+                            <div style="display:flex;gap:8px;">
+                                <select id="fatPeriodo" class="form-input" style="width:150px;" onchange="carregarFaturamento()">
+                                    <option value="6">Últimos 6 meses</option>
+                                    <option value="12" selected>Últimos 12 meses</option>
+                                    <option value="24">Últimos 24 meses</option>
+                                </select>
+                            </div>
+                        </div>
+                        <canvas id="chartFat" height="300"></canvas>
+                    </div>
+                    <div id="fatResumo" class="cards-grid"></div>
+                </div>
+
+                <!-- Tab: Inadimplência -->
+                <div id="tabInadimplencia" class="tab-content" style="display:none;">
+                    <div class="card" style="padding:24px;">
+                        <h3 style="margin-bottom:16px;">Lojas Inadimplentes</h3>
+                        <div id="inadList">Carregando...</div>
+                    </div>
+                </div>
+
+                <!-- Tab: Retenção -->
+                <div id="tabRetencao" class="tab-content" style="display:none;">
+                    <div class="card" style="padding:24px;">
+                        <h3 style="margin-bottom:16px;">Taxa de Retenção</h3>
+                        <div id="retencaoData">Carregando...</div>
+                    </div>
+                </div>
+
+                <!-- Tab: Executivo -->
+                <div id="tabExecutivo" class="tab-content" style="display:none;">
+                    <div class="card" style="padding:24px;">
+                        <h3 style="margin-bottom:16px;">Relatório Executivo</h3>
+                        <div id="execData">Carregando...</div>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script src="js/config.js"></script>
+    <script src="js/utils.js"></script>
+    <script src="js/sidebar.js"></script>
+    <script>
+        renderSidebar('relatorios');
+        checkAuth();
+
+        let fatChart = null;
+
+        function trocarTab(btn, tabId) {
+            document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+            document.querySelectorAll('.tab-content').forEach(t => { t.style.display = 'none'; t.classList.remove('active'); });
+            btn.classList.add('active');
+            const tab = document.getElementById(tabId);
+            tab.style.display = 'block';
+            tab.classList.add('active');
+
+            if (tabId === 'tabFaturamento') carregarFaturamento();
+            if (tabId === 'tabInadimplencia') carregarInadimplencia();
+            if (tabId === 'tabRetencao') carregarRetencao();
+            if (tabId === 'tabExecutivo') carregarExecutivo();
+        }
+
+        async function carregarFaturamento() {
+            try {
+                const meses = document.getElementById('fatPeriodo').value;
+                const data = await apiGet(API_CONFIG.ENDPOINTS.RELATORIOS_FATURAMENTO + `?meses=${meses}`);
+                if (!data) return;
+
+                // Chart
+                const ctx = document.getElementById('chartFat').getContext('2d');
+                if (fatChart) fatChart.destroy();
+                fatChart = new Chart(ctx, {
+                    type: 'line',
+                    data: {
+                        labels: (data.mensal || []).map(m => m.mes),
+                        datasets: [{
+                            label: 'Faturamento R$',
+                            data: (data.mensal || []).map(m => m.valor),
+                            borderColor: '#6366F1',
+                            backgroundColor: '#6366F120',
+                            fill: true,
+                            tension: 0.4,
+                            pointRadius: 4,
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        plugins: { legend: { display: false } },
+                        scales: { y: { beginAtZero: true } }
+                    }
+                });
+
+                // Resumo cards
+                document.getElementById('fatResumo').innerHTML = `
+                    <div class="card" style="padding:20px;text-align:center;">
+                        <div style="font-size:24px;font-weight:700;color:#6366F1;">R$ ${Number(data.total || 0).toLocaleString('pt-BR',{minimumFractionDigits:2})}</div>
+                        <div style="color:var(--text-secondary);margin-top:4px;">Total no período</div>
+                    </div>
+                    <div class="card" style="padding:20px;text-align:center;">
+                        <div style="font-size:24px;font-weight:700;color:#10B981;">R$ ${Number(data.media_mensal || 0).toLocaleString('pt-BR',{minimumFractionDigits:2})}</div>
+                        <div style="color:var(--text-secondary);margin-top:4px;">Média mensal</div>
+                    </div>
+                    <div class="card" style="padding:20px;text-align:center;">
+                        <div style="font-size:24px;font-weight:700;color:#F59E0B;">${data.total_lojas_pagantes || 0}</div>
+                        <div style="color:var(--text-secondary);margin-top:4px;">Lojas pagantes</div>
+                    </div>
+                `;
+            } catch(e) {
+                console.error('Erro faturamento:', e);
+            }
+        }
+
+        async function carregarInadimplencia() {
+            try {
+                const data = await apiGet(API_CONFIG.ENDPOINTS.RELATORIOS_INADIMPLENCIA);
+                if (!data || !data.lojas || data.lojas.length === 0) {
+                    document.getElementById('inadList').innerHTML = '<p style="color:var(--text-secondary);">Nenhuma loja inadimplente 🎉</p>';
+                    return;
+                }
+                document.getElementById('inadList').innerHTML = `
+                    <table class="table">
+                        <thead><tr><th>Loja</th><th>CNPJ</th><th>Dias em atraso</th><th>Valor devido</th><th>Status</th></tr></thead>
+                        <tbody>
+                            ${data.lojas.map(l => `
+                                <tr>
+                                    <td><strong>${l.nome_fantasia}</strong></td>
+                                    <td><code>${l.cnpj || '-'}</code></td>
+                                    <td style="color:var(--danger);font-weight:600;">${l.dias_atraso || 0} dias</td>
+                                    <td>R$ ${Number(l.valor_devido || 0).toFixed(2)}</td>
+                                    <td><span class="badge badge-warning">${l.status}</span></td>
+                                </tr>
+                            `).join('')}
+                        </tbody>
+                    </table>
+                    <p style="margin-top:12px;color:var(--text-secondary);">Total: ${data.total_inadimplentes || data.lojas.length} lojas inadimplentes</p>
+                `;
+            } catch(e) {
+                document.getElementById('inadList').innerHTML = '<p style="color:var(--danger);">Erro ao carregar</p>';
+            }
+        }
+
+        async function carregarRetencao() {
+            try {
+                const data = await apiGet(API_CONFIG.ENDPOINTS.RELATORIOS_RETENCAO);
+                if (!data) return;
+                document.getElementById('retencaoData').innerHTML = `
+                    <div class="cards-grid" style="margin-bottom:20px;">
+                        <div class="card" style="padding:20px;text-align:center;">
+                            <div style="font-size:32px;font-weight:700;color:#10B981;">${data.taxa_retencao || 0}%</div>
+                            <div style="color:var(--text-secondary);">Taxa de Retenção</div>
+                        </div>
+                        <div class="card" style="padding:20px;text-align:center;">
+                            <div style="font-size:32px;font-weight:700;color:#6366F1;">${data.total_ativas || 0}</div>
+                            <div style="color:var(--text-secondary);">Lojas Ativas</div>
+                        </div>
+                        <div class="card" style="padding:20px;text-align:center;">
+                            <div style="font-size:32px;font-weight:700;color:#EF4444;">${data.canceladas_mes || 0}</div>
+                            <div style="color:var(--text-secondary);">Canceladas no Mês</div>
+                        </div>
+                    </div>
+                `;
+            } catch(e) {
+                document.getElementById('retencaoData').innerHTML = '<p style="color:var(--danger);">Erro ao carregar</p>';
+            }
+        }
+
+        async function carregarExecutivo() {
+            try {
+                const data = await apiGet(API_CONFIG.ENDPOINTS.RELATORIOS_EXECUTIVO);
+                if (!data) return;
+                document.getElementById('execData').innerHTML = `
+                    <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;">
+                        <div>
+                            <h4 style="margin-bottom:12px;">📊 Resumo Geral</h4>
+                            <p><strong>Total de Lojas:</strong> ${data.total_lojas || 0}</p>
+                            <p><strong>Lojas Ativas:</strong> ${data.lojas_ativas || 0}</p>
+                            <p><strong>Inadimplentes:</strong> ${data.inadimplentes || 0}</p>
+                            <p><strong>Bloqueadas:</strong> ${data.bloqueadas || 0}</p>
+                            <p><strong>Canceladas:</strong> ${data.canceladas || 0}</p>
+                        </div>
+                        <div>
+                            <h4 style="margin-bottom:12px;">💰 Financeiro</h4>
+                            <p><strong>Faturamento Mês:</strong> R$ ${Number(data.faturamento_mes || 0).toFixed(2)}</p>
+                            <p><strong>Ticket Médio:</strong> R$ ${Number(data.ticket_medio || 0).toFixed(2)}</p>
+                            <p><strong>MRR:</strong> R$ ${Number(data.mrr || 0).toFixed(2)}</p>
+                            <p><strong>Churn Rate:</strong> ${data.churn_rate || 0}%</p>
+                        </div>
+                    </div>
+                `;
+            } catch(e) {
+                document.getElementById('execData').innerHTML = '<p style="color:var(--danger);">Erro ao carregar</p>';
+            }
+        }
+
+        carregarFaturamento();
+    </script>
+</body>
+</html>

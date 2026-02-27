@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Lojas - Sistema Ultra v3</title>
+    <link rel="stylesheet" href="css/style.css">
+    <style>
+        .api-key-box { display:flex; align-items:center; gap:8px; background:var(--bg-tertiary); border:1px solid var(--border-color); border-radius:8px; padding:8px 12px; margin:4px 0; }
+        .api-key-box code { font-family:var(--font-mono); font-size:13px; color:var(--accent); flex:1; word-break:break-all; user-select:all; }
+        .api-key-box button { background:var(--accent); color:#fff; border:none; border-radius:6px; padding:4px 10px; cursor:pointer; font-size:11px; white-space:nowrap; }
+        .api-key-box button:hover { background:var(--accent-hover); }
+        .loja-card { background:var(--bg-primary); border:1px solid var(--border-color); border-radius:var(--border-radius); padding:20px; margin-bottom:16px; transition:var(--transition); }
+        .loja-card:hover { box-shadow:var(--shadow-md); border-color:var(--accent); }
+        .loja-header { display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:12px; }
+        .loja-name { font-size:17px; font-weight:700; color:var(--text-primary); }
+        .loja-razao { font-size:13px; color:var(--text-secondary); margin-top:2px; }
+        .loja-desc { font-size:13px; color:var(--text-secondary); margin:8px 0; padding:8px; background:var(--bg-tertiary); border-radius:6px; font-style:italic; }
+        .loja-info { display:grid; grid-template-columns:repeat(auto-fit,minmax(180px,1fr)); gap:8px 16px; font-size:13px; margin:12px 0; }
+        .loja-info-item { color:var(--text-secondary); }
+        .loja-info-item strong { color:var(--text-primary); }
+        .loja-actions { display:flex; gap:6px; flex-wrap:wrap; margin-top:12px; padding-top:12px; border-top:1px solid var(--border-color); }
+        .loja-actions .btn { font-size:12px; padding:6px 12px; }
+        .toast { position:fixed; top:20px; right:20px; background:#22c55e; color:#fff; padding:12px 20px; border-radius:8px; font-size:14px; z-index:99999; animation:slideIn .3s; }
+        .toast.error { background:#ef4444; }
+        @keyframes slideIn { from{transform:translateX(100px);opacity:0;} to{transform:translateX(0);opacity:1;} }
+        .empty-state { text-align:center; padding:60px 20px; color:var(--text-secondary); }
+        .empty-state .icon { font-size:48px; margin-bottom:12px; }
+        .stats-row { display:grid; grid-template-columns:repeat(auto-fit,minmax(140px,1fr)); gap:12px; margin-bottom:20px; }
+        .stat-mini { background:var(--bg-primary); border:1px solid var(--border-color); border-radius:var(--border-radius-sm); padding:16px; text-align:center; }
+        .stat-mini .value { font-size:24px; font-weight:700; color:var(--accent); }
+        .stat-mini .label { font-size:12px; color:var(--text-secondary); margin-top:4px; }
+    </style>
+</head>
+<body>
+    <div class="dashboard">
+        <aside class="sidebar"></aside>
+        <main class="main-content">
+            <header class="header">
+                <div class="header-title">
+                    <h1>🏪 Lojas</h1>
+                    <p class="header-subtitle">Gerenciamento de lojas clientes</p>
+                </div>
+                <div class="header-actions">
+                    <button class="btn btn-primary" id="btnNovaLoja">+ Nova Loja</button>
+                    <button class="theme-toggle" onclick="toggleTheme()">🌙</button>
+                </div>
+            </header>
+            <div class="content">
+                <div class="stats-row" id="stats"></div>
+                <div style="display:flex;gap:12px;margin-bottom:20px;flex-wrap:wrap;">
+                    <input type="text" id="busca" class="form-input" placeholder="🔍 Buscar por nome, CNPJ..." style="max-width:300px;flex:1;" oninput="filtrarLojas()">
+                    <select id="filtroStatus" class="form-input" style="max-width:180px;" onchange="filtrarLojas()">
+                        <option value="">Todos os status</option>
+                        <option value="ativo">✅ Ativo</option>
+                        <option value="inadimplente">⚠️ Inadimplente</option>
+                        <option value="bloqueado">🚫 Bloqueado</option>
+                        <option value="cancelado">❌ Cancelado</option>
+                    </select>
+                    <select id="filtroSegmento" class="form-input" style="max-width:200px;" onchange="filtrarLojas()">
+                        <option value="">Todos os segmentos</option>
+                    </select>
+                </div>
+                <div id="listaLojas">
+                    <div class="empty-state"><div class="icon">⏳</div><p>Carregando...</p></div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- MODAL CRIAR / EDITAR LOJA -->
+    <div class="modal-overlay" id="modalLoja" style="display:none;">
+        <div class="modal-box" style="max-width:750px;">
+            <div class="modal-header">
+                <h2 id="modalTitulo">Nova Loja</h2>
+                <button class="modal-close" onclick="fecharModal()">&times;</button>
+            </div>
+            <div class="modal-body">
+                <input type="hidden" id="editLojaId" value="">
+
+                <h3 style="font-size:14px;color:var(--text-secondary);margin-bottom:12px;text-transform:uppercase;letter-spacing:1px;">📋 Dados Principais</h3>
+                <div class="form-row">
+                    <div class="form-group"><label class="form-label">Razão Social *</label>
+                        <input type="text" id="fRazaoSocial" class="form-input" placeholder="Empresa Ltda"></div>
+                    <div class="form-group"><label class="form-label">Nome Fantasia *</label>
+                        <input type="text" id="fNomeFantasia" class="form-input" placeholder="Minha Loja"></div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group"><label class="form-label">CNPJ *</label>
+                        <input type="text" id="fCnpj" class="form-input" maxlength="18" placeholder="00.000.000/0000-00"></div>
+                    <div class="form-group"><label class="form-label">Segmento</label>
+                        <select id="fSegmento" class="form-input">
+                            <option value="">Selecione...</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group"><label class="form-label">Tipo de Negócio</label>
+                        <select id="fTipoNegocio" class="form-input">
+                            <option value="geral">🏪 Geral</option>
+                            <option value="assistencia">🔧 Assistência Técnica</option>
+                            <option value="moda">👗 Moda / Roupas</option>
+                            <option value="farmacia">💊 Farmácia</option>
+                            <option value="mercado">🛒 Mercado</option>
+                        </select>
+                    </div>
+                    <div class="form-group"><label class="form-label">Dia Vencimento</label>
+                        <input type="number" id="fDiaVencimento" class="form-input" value="15" min="1" max="28"></div>
+                </div>
+                <div class="form-group" style="margin-top:4px;">
+                    <label class="form-label">📝 Descrição / Observações</label>
+                    <textarea id="fDescricao" class="form-input" rows="3" placeholder="Anote detalhes sobre esta loja..." style="resize:vertical;"></textarea>
+                </div>
+
+                <h3 style="font-size:14px;color:var(--text-secondary);margin:20px 0 12px;text-transform:uppercase;letter-spacing:1px;">📞 Contato</h3>
+                <div class="form-row">
+                    <div class="form-group"><label class="form-label">Telefone</label>
+                        <input type="text" id="fTelefone" class="form-input" placeholder="(11) 1234-5678"></div>
+                    <div class="form-group"><label class="form-label">WhatsApp</label>
+                        <input type="text" id="fWhatsapp" class="form-input" placeholder="(11) 91234-5678"></div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group"><label class="form-label">Email</label>
+                        <input type="email" id="fEmail" class="form-input" placeholder="contato@empresa.com"></div>
+                    <div class="form-group"><label class="form-label">Responsável</label>
+                        <input type="text" id="fResponsavel" class="form-input" placeholder="Nome do responsável"></div>
+                </div>
+
+                <h3 style="font-size:14px;color:var(--text-secondary);margin:20px 0 12px;text-transform:uppercase;letter-spacing:1px;">📍 Endereço</h3>
+                <div class="form-row">
+                    <div class="form-group" style="flex:2"><label class="form-label">Cidade</label>
+                        <input type="text" id="fCidade" class="form-input" placeholder="São Paulo"></div>
+                    <div class="form-group" style="flex:0 0 100px"><label class="form-label">UF</label>
+                        <input type="text" id="fEstado" class="form-input" maxlength="2" style="text-transform:uppercase;" placeholder="SP"></div>
+                </div>
+
+                <div id="formErro" style="display:none;background:var(--danger-bg);color:var(--danger);padding:12px;border-radius:8px;margin-top:16px;font-size:13px;"></div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="fecharModal()">Cancelar</button>
+                <button class="btn btn-primary" id="btnSalvar">💾 Criar Loja</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL DETALHES -->
+    <div class="modal-overlay" id="modalDetalhes" style="display:none;">
+        <div class="modal-box" style="max-width:800px;">
+            <div class="modal-header">
+                <h2 id="detalheTitulo">Detalhes da Loja</h2>
+                <button class="modal-close" onclick="fecharModalDetalhes()">&times;</button>
+            </div>
+            <div class="modal-body" id="detalheBody">Carregando...</div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="fecharModalDetalhes()">Fechar</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="js/config.js"></script>
+    <script src="js/utils.js"></script>
+    <script src="js/sidebar.js"></script>
+    <script src="js/lojas.js"></script>
+</body>
+</html>
