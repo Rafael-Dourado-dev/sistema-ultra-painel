@@ -8,7 +8,7 @@
 
 const API_CONFIG = {
     // ⬇️ ALTERE AQUI para a URL do seu backend ⬇️
-    BASE_URL: 'https://sistema-ultra-backend-production.up.railway.app',
+    BASE_URL: 'sistema-ultra-backend-production.up.railway.app',
 
     ENDPOINTS: {
         LOGIN: '/api/auth/login',
