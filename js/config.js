@@ -8,7 +8,7 @@
 
 const API_CONFIG = {
     // ⬇️ ALTERE AQUI para a URL do seu backend ⬇️
-    BASE_URL: 'postgresql://postgres:LxOUgDChegzJbwWfiuDnvLsiZxCNZxJH@postgres.railway.internal:5432/railway',
+    BASE_URL: 'https://sistema-ultra-backend-production.up.railway.app',
 
     ENDPOINTS: {
         LOGIN: '/api/auth/login',
