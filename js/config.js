@@ -1,5 +1,5 @@
 const API_CONFIG = {
-    BASE_URL: 'https://sistema-ultra-backend-production.up.railway.app',
+    BASE_URL: 'https://sistema-ultra-bankend-production.up.railway.app/',
     ENDPOINTS: {
         LOGIN: '/api/auth/login',
         REGISTER: '/api/auth/register',
