@@ -1,11 +1,3 @@
-// ═══════════════════════════════════════════════════════════
-// SISTEMA ULTRA v3.1 - Configuração da API
-// ═══════════════════════════════════════════════════════════
-// IMPORTANTE: Altere a BASE_URL para o endereço do seu backend
-// Se está testando local: http://localhost:8000
-// Se subiu no Railway: https://seu-backend.up.railway.app
-// ═══════════════════════════════════════════════════════════
-
 const API_CONFIG = {
     BASE_URL: 'https://sistema-ultra-backend-production.up.railway.app',
     ENDPOINTS: {
