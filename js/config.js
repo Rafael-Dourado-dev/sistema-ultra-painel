@@ -1,10 +1,10 @@
 const API_CONFIG = {
-    BASE_URL: 'https://sistema-ultra-bankend-production.up.railway.app/',
+    BASE_URL: 'https://sistema-ultra-bankend-production.up.railway.app',
     ENDPOINTS: {
         LOGIN: '/api/auth/login',
         REGISTER: '/api/auth/register',
         ME: '/api/auth/me',
-        LOJAS: '/api/lojas',
+        LOJAS: '/api/lojas/',
         LOJA: (id) => `/api/lojas/${id}`,
         LOJA_STATUS: (id) => `/api/lojas/${id}/status`,
         LOJA_HISTORICO: (id) => `/api/lojas/${id}/historico-bloqueios`,
